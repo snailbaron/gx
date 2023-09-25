@@ -1,63 +1,19 @@
 #pragma once
 
+#include <gx/id.hpp>
+#include <gx/renderer.hpp>
+
 #include <cstddef>
 #include <filesystem>
 #include <map>
 #include <span>
+#include <string>
 #include <utility>
 
 namespace gx {
 
-template <class Id, class Object>
-class ObjectCache {
-public:
-    Id push(Object&& object)
-    {
-        auto id = _nextId++;
-        return _objects.emplace(id, std::move(object));
-    }
-
-    template <class... Args>
-    Id emplace(Args&&... args)
-    {
-        auto id = _nextId++;
-        _objects.emplace(id, Object{std::forward<Args>(args)...});
-    }
-
-    void pop(Id id)
-    {
-        return _objects.erase(id);
-    }
-
-    Object& operator[](Id id)
-    {
-        return _objects.at(id);
-    }
-
-    const Object& operator[](Id id) const
-    {
-        return _objects.at(id);
-    }
-
-private:
-    std::map<Id, Object> _objects;
-    Id _nextId = 0;
-};
-
-class Id {
-public:
-    using Base = unsigned long;
-
-    explicit Id(Base id) : _id(id) {}
-    operator Base() const { return _id; }
-
-private:
-    Base _id = 0;
-};
-
-class TextureId : public Id {};
+class BitmapId : public Id {};
 class SpriteId : public Id {};
-class ObjectId : public Id {};
 
 struct SpriteLayout {
     enum class Type {
@@ -72,19 +28,35 @@ struct SpriteLayout {
 SpriteLayout horizontalLayout(int frameCount);
 SpriteLayout verticalLayout(int frameCount);
 
+struct Sprite {
+    BitmapId bitmapId;
+    Bitmap* bitmap = nullptr;
+    std::vector<Frame> frames;
+    double frameDuration = 0.0;
+};
+
 class Resources {
 public:
-    TextureId loadTexture(const std::filesystem::path& path);
-    TextureId loadTexture(const std::span<const std::byte>& data);
+    BitmapId loadBitmap(
+        const Renderer& renderer, const std::filesystem::path& path);
+    BitmapId loadBitmap(
+        const Renderer& renderer, const std::span<const std::byte>& data);
 
     SpriteId loadSprite(
+        const Renderer& renderer,
         const std::filesystem::path& path,
         int fps,
         const SpriteLayout& layout = horizontalLayout(1));
 
+    const Bitmap& operator[](BitmapId bitmapId) const;
+    const Sprite& operator[](SpriteId spriteId) const;
+
 private:
-    ObjectCache<TextureId, Texture> _textures;
+    ObjectCache<BitmapId, Bitmap> _bitmaps;
     ObjectCache<SpriteId, Sprite> _sprites;
+
+    std::map<BitmapId, std::string> _bitmapNames;
+    std::map<SpriteId, std::string> _spriteNames;
 };
 
 } // namespace gx

@@ -16,16 +16,27 @@ namespace gx {
 
 class Client {
 public:
-    ObjectId spawn(SpriteId spriteId, Position position);
+    Client();
 
+    SpriteId loadSprite(
+        const std::filesystem::path& path,
+        int fps = 1,
+        const SpriteLayout& layout = horizontalLayout(1));
+
+    ObjectId spawn(SpriteId spriteId, ScreenPosition position);
+
+    void processInput();
     void update(double delta);
     void present();
 
-private:
-    Renderer _window;
+    Scene& scene();
 
+private:
+    void processEvent(const SDL_Event& event);
+
+    Renderer _renderer;
+    Resources _resources;
     Scene _scene;
-    Ui _ui;
 };
 
 } // namespace gx

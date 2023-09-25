@@ -5,20 +5,32 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <ostream>
 #include <span>
 #include <vector>
 
 namespace gx {
 
-struct Position {
+struct ScreenPosition {
     float x = 0.f;
     float y = 0.f;
 };
 
-struct Size {
+inline std::ostream& operator<<(
+    std::ostream& output, const ScreenPosition& position)
+{
+    return output << "(" << position.x << ", " << position.y << ")";
+}
+
+struct ScreenSize {
     int w = 0;
     int h = 0;
 };
+
+inline std::ostream& operator<<(std::ostream& output, const ScreenSize& size)
+{
+    return output << "(" << size.w << ", " << size.h << ")";
+}
 
 struct Frame {
     int x = 0.f;
@@ -29,7 +41,7 @@ struct Frame {
 
 class Bitmap {
 public:
-    Size size() const;
+    ScreenSize size() const;
 
 private:
     explicit Bitmap(SDL_Texture* ptr);
@@ -47,10 +59,16 @@ public:
     Bitmap loadBitmap(const std::span<const std::byte>& data) const;
 
     void draw(
-        const Bitmap& bitmap, const Frame& rect, const Position& position);
+        const Bitmap& bitmap,
+        const Frame& rect,
+        const ScreenPosition& position,
+        float zoom = 1.f);
 
+    void processInput();
     void clear();
     void present();
+
+    ScreenSize windowSize() const;
 
 private:
     std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> _window;

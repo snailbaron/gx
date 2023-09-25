@@ -19,10 +19,7 @@ int main()
 {
     const auto root = executableDirectory();
 
-    auto client = gx::Client{};
-
-    auto treeSprite = client.loadSprite(
-        root / "tree.png", 5, gx::horizontalLayout(2));
+    auto renderer = gx::Renderer{};
 
     static constexpr int fps = 60;
     static constexpr double frameDurationSeconds = 1.0 / fps;
@@ -54,8 +51,8 @@ int main()
         lastFrameIndex = frameIndex;
 
         if (framesPassed > 0) {
-            client.update(framesPassed * frameDurationSeconds);
-            client.present();
+            renderer.clear();
+            renderer.present();
         }
 
         std::this_thread::sleep_until(

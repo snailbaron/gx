@@ -1,61 +1,67 @@
 #pragma once
 
-#include <gx/window.hpp>
+#include <gx/id.hpp>
+#include <gx/renderer.hpp>
+#include <gx/resources.hpp>
 
 #include <chrono>
-#include <vector>
+#include <map>
 
 namespace gx {
 
 class Camera {
 public:
-    Position project(const Position& worldPosition) const;
+    ScreenPosition project(const ScreenPosition& worldPosition) const;
+    float zoom() const;
 
-    void setWindowSize(int width, int height);
+    void setWindowSize(ScreenSize size);
+    void position(const ScreenPosition& center, float unitPixelSize, float zoom);
 
 private:
-    Position _position;
+    ScreenPosition _position;
+    ScreenSize _screenSize;
     float _unitPixelSize = 1.f;
-    int _screenWidth = 0;
-    int _screenHeight = 0;
+    float _zoom = 1.f;
 };
 
-class Sprite {
+class Object {
 public:
-    Sprite(const Bitmap& texture, std::vector<Frame> frames, int fps);
+    Object(const Sprite& sprite, const ScreenPosition& position);
 
-private:
-    using Clock = std::chrono::high_resolution_clock;
-
-    const Bitmap* _texture = nullptr;
-    std::vector<Frame> _frames;
-    double _frameDuration;
-};
-
-class SpriteState {
-public:
-    const Bitmap& texture() const;
+    const Bitmap& bitmap() const;
     const Frame& frame() const;
-    const Position& position() const;
+    const ScreenPosition& position() const;
 
-    void move(Position position);
+    void move(ScreenPosition position);
     void update(double delta);
 
 private:
     const Sprite* _sprite = nullptr;
+    ScreenPosition _position;
     size_t _frameIndex = 0;
     double _timeSum = 0.0;
-    Position _position;
 };
+
+class ObjectId : public Id {};
 
 class Scene {
 public:
+    Camera& camera();
+
     void update(double delta);
-    void render(Renderer& window) const;
+    void render(Renderer& renderer) const;
+
+    ObjectId spawn(const Sprite& sprite, ScreenPosition position);
+    void move(ObjectId objectId, ScreenPosition position);
+    void kill(ObjectId objectId);
+
+    void layTexture(const Sprite& sprite);
+    void removeTexture();
 
 private:
     Camera _camera;
-    std::vector<Sprite> _sprites;
+    ObjectCache<ObjectId, Object> _objects;
+    const Sprite* _texture = nullptr;
 };
 
 } // namespace gx

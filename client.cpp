@@ -6,103 +6,53 @@
 
 namespace gx {
 
-SpriteLayout horizontalLayout(int frameCount)
+Client::Client()
 {
-    return SpriteLayout{
-        .type = SpriteLayout::Type::Horizontal, .frameCount = frameCount};
-}
-
-SpriteLayout verticalLayout(int frameCount)
-{
-    return SpriteLayout{
-        .type = SpriteLayout::Type::Vertical, .frameCount = frameCount};
-}
-
-TextureId Client::loadTexture(const std::filesystem::path& path)
-{
-    return _textures.push(_window.loadBitmap(path));
-}
-
-TextureId Client::loadTexture(const std::span<const std::byte>& data)
-{
-    return _textures.push(_window.loadTexture(data));
+    _scene.camera().setWindowSize(_renderer.windowSize());
 }
 
 SpriteId Client::loadSprite(
-    const std::filesystem::path& path, int fps, const SpriteLayout& layout)
+    const std::filesystem::path& path,
+    int fps,
+    const SpriteLayout& layout)
 {
-    auto textureId = loadTexture(path);
-    const auto& size = _textures[textureId].size();
-
-    switch (layout.type) {
-        case SpriteLayout::Type::Horizontal:
-        {
-            if (size.w % layout.frameCount != 0) {
-                throw Error{
-                    "cannot divide texture of width " + std::to_string(size.w) +
-                    " into " + std::to_string(layout.frameCount) + " parts"};
-            }
-            auto spriteWidth = size.w / layout.frameCount;
-
-            auto frames = std::vector<Frame>{};
-            for (int i = 0; i < layout.frameCount; i++) {
-                frames.push_back({
-                    .x = i * spriteWidth,
-                    .y = 0,
-                    .w = spriteWidth,
-                    .h = size.h
-                });
-            }
-
-            return _sprites.emplace(
-                _textures[textureId], std::move(frames), fps);
-        }
-        case SpriteLayout::Type::Vertical:
-        {
-            if (size.h % layout.frameCount != 0) {
-                throw Error{
-                    "cannot divide texture of height " +
-                    std::to_string(size.h) + " info " +
-                    std::to_string(layout.frameCount) + " parts"};
-            }
-            auto spriteHeight = size.h / layout.frameCount;
-
-            auto frames = std::vector<Frame>{};
-            for (int i = 0; i < layout.frameCount; i++) {
-                frames.push_back({
-                    .x = 0,
-                    .y = i * spriteHeight,
-                    .w = size.w,
-                    .h = spriteHeight
-                });
-            }
-
-            return _sprites.emplace(
-                _textures[textureId], std::move(frames), fps);
-        }
-    }
-
-    throw Error{
-        "unknown SpriteLayout::Type value: " +
-        std::to_string((int)layout.type)};
+    return _resources.loadSprite(_renderer, path, fps, layout);
 }
 
-ObjectId Client::spawn(SpriteId spriteId, Position position)
+ObjectId Client::spawn(SpriteId spriteId, ScreenPosition position)
 {
+    return _scene.spawn(_resources[spriteId], position);
+}
+
+void Client::processInput()
+{
+    for (SDL_Event e; SDL_PollEvent(&e); ) {
+        processEvent(e);
+    }
 }
 
 void Client::update(double delta)
 {
     _scene.update(delta);
-    _ui.update(delta);
 }
 
 void Client::present()
 {
-    _window.clear();
-    _scene.render(_window);
-    _ui.render(_window);
-    _window.present();
+    _renderer.clear();
+    _scene.render(_renderer);
+    _renderer.present();
 }
+
+Scene& Client::scene()
+{
+    return _scene;
+}
+
+void Client::processEvent(const SDL_Event& event)
+{
+    
+
+}
+
 
 } // namespace gx

@@ -6,15 +6,17 @@
 
 #include <utility>
 
+#include <iostream>
+
 namespace gx {
 
 Bitmap::Bitmap(SDL_Texture* ptr)
     : _ptr(ptr, SDL_DestroyTexture)
 { }
 
-Size Bitmap::size() const
+ScreenSize Bitmap::size() const
 {
-    auto size = Size{};
+    auto size = ScreenSize{};
     sdlCheck(SDL_QueryTexture(_ptr.get(), nullptr, nullptr, &size.w, &size.h));
     return size;
 }
@@ -57,14 +59,17 @@ Bitmap Renderer::loadBitmap(const std::span<const std::byte>& data) const
 }
 
 void Renderer::draw(
-    const Bitmap& bitmap, const Frame& rect, const Position& position)
+    const Bitmap& bitmap,
+    const Frame& rect,
+    const ScreenPosition& position,
+    float zoom)
 {
     auto src = SDL_Rect{.x = rect.x, .y = rect.y, .w = rect.w, .h = rect.h};
     auto dst = SDL_FRect{
-        .x = position.x - (float)rect.w / 2.f,
-        .y = position.y - (float)rect.h / 2.f,
-        .w = (float)rect.w,
-        .h = (float)rect.h
+        .x = position.x - zoom * (float)rect.w / 2.f,
+        .y = position.y - zoom * (float)rect.h / 2.f,
+        .w = zoom * (float)rect.w,
+        .h = zoom * (float)rect.h
     };
 
     sdlCheck(SDL_RenderCopyF(_renderer.get(), bitmap._ptr.get(), &src, &dst));
@@ -78,6 +83,13 @@ void Renderer::clear()
 void Renderer::present()
 {
     SDL_RenderPresent(_renderer.get());
+}
+
+ScreenSize Renderer::windowSize() const
+{
+    auto size = ScreenSize{};
+    SDL_GetWindowSize(_window.get(), &size.w, &size.h);
+    return size;
 }
 
 } // namespace gx
