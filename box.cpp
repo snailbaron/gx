@@ -16,6 +16,16 @@ Bitmap Box::loadBitmap(const std::span<const std::byte>& data) const
     return _renderer.loadBitmap(data);
 }
 
+Cursor Box::loadCursor(const std::filesystem::path& path, int x, int y)
+{
+    return Renderer::loadCursor(path, x, y);
+}
+
+void Box::setCursor(Cursor& cursor)
+{
+    Renderer::setCursor(cursor);
+}
+
 void Box::update(double delta)
 {
     for (const auto& widget : _widgets) {

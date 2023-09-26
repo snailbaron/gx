@@ -49,6 +49,19 @@ private:
     friend class Renderer;
 };
 
+class Cursor {
+public:
+    Cursor();
+
+private:
+    explicit Cursor(SDL_Surface* ptr, int x, int y);
+
+    std::unique_ptr<SDL_Surface, void(*)(SDL_Surface*)> _surface;
+    std::unique_ptr<SDL_Cursor, void(*)(SDL_Cursor*)> _cursor;
+
+    friend class Renderer;
+};
+
 struct Color {
     uint8_t r = 0;
     uint8_t g = 0;
@@ -62,6 +75,9 @@ public:
 
     Bitmap loadBitmap(const std::filesystem::path& path) const;
     Bitmap loadBitmap(const std::span<const std::byte>& data) const;
+
+    static Cursor loadCursor(const std::filesystem::path& path, int x, int y);
+    static void setCursor(Cursor& cursor);
 
     void draw(
         const Bitmap& bitmap,

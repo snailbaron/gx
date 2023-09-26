@@ -39,7 +39,7 @@ public:
     virtual void onActivate() {}
 
 private:
-    State _state = State::Normal;
+    State _state = State::Disabled;
 };
 
 class Button : public Widget {

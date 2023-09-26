@@ -19,6 +19,9 @@ public:
     Bitmap loadBitmap(const std::filesystem::path& path) const;
     Bitmap loadBitmap(const std::span<const std::byte>& data) const;
 
+    static Cursor loadCursor(const std::filesystem::path& path, int x, int y);
+    static void setCursor(Cursor& cursor);
+
     bool processEvent(const SDL_Event& e);
     void update(double delta);
     void present();

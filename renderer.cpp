@@ -22,6 +22,18 @@ Bitmap::Bitmap(SDL_Texture* ptr)
     : _ptr(ptr, SDL_DestroyTexture)
 { }
 
+Cursor::Cursor()
+    : _surface(nullptr, SDL_FreeSurface)
+    , _cursor(nullptr, SDL_FreeCursor)
+{ }
+
+Cursor::Cursor(SDL_Surface* ptr, int x, int y)
+    : _surface(ptr, SDL_FreeSurface)
+    , _cursor(
+        sdlCheck(SDL_CreateColorCursor(_surface.get(), x, y)),
+        SDL_FreeCursor)
+{ }
+
 StrictSize Bitmap::size() const
 {
     auto size = StrictSize{};
@@ -66,6 +78,16 @@ Bitmap Renderer::loadBitmap(const std::span<const std::byte>& data) const
                 static_cast<int>(data.size()))),
             1 /* freesrc */))
     };
+}
+
+Cursor Renderer::loadCursor(const std::filesystem::path& path, int x, int y)
+{
+    return Cursor{sdlCheck(IMG_Load(path.string().c_str())), x, y};
+}
+
+void Renderer::setCursor(Cursor& cursor)
+{
+    SDL_SetCursor(cursor._cursor.get());
 }
 
 void Renderer::draw(

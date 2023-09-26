@@ -270,6 +270,7 @@ struct Resources {
 
     Bitmaps bitmaps;
     Sprites sprites;
+    gx::Cursor cursor;
 };
 
 Resources loadResources(const gx::Box& box)
@@ -289,6 +290,8 @@ Resources loadResources(const gx::Box& box)
 
     r.bitmaps.stone = box.loadBitmap(root / "stone.png");
     r.sprites.stone = gx::createSimpleSprite(r.bitmaps.stone);
+
+    r.cursor = gx::Box::loadCursor(root / "cursor.png", 2, 0);
 
     return r;
 }
@@ -338,6 +341,7 @@ int main()
 
     auto box = gx::Box{};
     auto r = loadResources(box);
+    gx::Box::setCursor(r.cursor);
 
     auto* scene = box.createWidget<gx::Scene>();
 
