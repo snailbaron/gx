@@ -32,7 +32,7 @@ const char* Error::what() const noexcept
 }
 
 SdlError::SdlError(std::source_location sourceLocation)
-    : Error(SDL_GetError())
+    : Error(SDL_GetError(), sourceLocation)
 { }
 
 void sdlCheck(int returnCode, std::source_location sourceLocation)

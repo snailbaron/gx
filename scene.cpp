@@ -6,69 +6,31 @@
 
 namespace gx {
 
-ScreenPosition Camera::project(const ScreenPosition& worldPosition) const
+ScreenPoint Camera::project(const WorldPoint& worldPosition) const
 {
-    std::cerr << "worldPosition: " << worldPosition << "\n";
-    std::cerr << "_position: " << _position << "\n";
-    std::cerr << "_unitPixelSize: " << _unitPixelSize << "\n";
-    std::cerr << "_zoom: " << _zoom << "\n";
-    std::cerr << "_screenSize: " << _screenSize << "\n";
-
     return {
-        .x = (worldPosition.x - _position.x) * _unitPixelSize * _zoom +
-            (float)_screenSize.w / 2.f,
-        .y = (_position.y - worldPosition.y) * _unitPixelSize * _zoom +
-            (float)_screenSize.h / 2.f,
+        .x = 0.5_fr + 1.0_px * (worldPosition.x - position.x) *
+            unitPixelSize * (float)zoom,
+        .y = 0.5_fr + 1.0_px * (position.y - worldPosition.y) *
+            unitPixelSize * (float)zoom,
     };
 }
 
-float Camera::zoom() const
+void Camera::update(float delta)
 {
-    return _zoom;
-}
+    static constexpr float dragForce = 10.f;
+    static constexpr float extraDrag = 1.f;
 
-void Camera::setWindowSize(ScreenSize size)
-{
-    _screenSize = size;
-}
-
-void Camera::position(const ScreenPosition& center, float unitPixelSize, float zoom)
-{
-    _position = center;
-    _unitPixelSize = unitPixelSize;
-    _zoom = zoom;
-}
-
-Object::Object(const Sprite& sprite, const ScreenPosition& position)
-    : _sprite(&sprite)
-    , _position(position)
-{ }
-
-const Bitmap& Object::bitmap() const
-{
-    return *_sprite->bitmap;
-}
-
-const Frame& Object::frame() const
-{
-    return _sprite->frames.at(_frameIndex);
-}
-
-const ScreenPosition& Object::position() const
-{
-    return _position;
-}
-
-void Object::move(ScreenPosition position)
-{
-    _position = position;
-}
-
-void Object::update(double delta)
-{
-    _timeSum += delta;
-    _frameIndex = static_cast<size_t>(_timeSum / _sprite->frameDuration) %
-        _sprite->frames.size();
+    if (follow) {
+        auto toTarget = follow->position - position;
+        float d = length(toTarget);
+        float moveDistance = (dragForce * d * d + extraDrag) * delta;
+        if (moveDistance >= d) {
+            position = follow->position;
+        } else {
+            position += resize(toTarget, moveDistance);
+        }
+    }
 }
 
 Camera& Scene::camera()
@@ -76,51 +38,54 @@ Camera& Scene::camera()
     return _camera;
 }
 
-void Scene::update(double delta)
+void Scene::update(float delta)
 {
-    for (auto& object : _objects) {
-        object.update(delta);
+    _camera.update(delta);
+
+    size_t n = _objects.size();
+    for (size_t i = 0; i < n; ) {
+        if (_objects.at(i)->kill) {
+            std::swap(_objects.at(i), _objects.back());
+            n--;
+        } else {
+            _objects.at(i)->animation.update(delta);
+            i++;
+        }
     }
+    _objects.resize(n);
 }
 
 void Scene::render(Renderer& renderer) const
 {
-    if (_texture) {
-        auto zeroScreenCoords = _camera.project({0, 0});
-        auto x0 = std::fmod(zeroScreenCoords.x, _texture->frames.front().w);
-        auto y0 = std::fmod(zeroScreenCoords.y, _texture->frames.front().h);
-    }
-
     for (const auto& object : _objects) {
-        auto screenPosition = _camera.project(object.position());
+        auto screenPosition = _camera.project(object->position);
         renderer.draw(
-            object.bitmap(), object.frame(), screenPosition, _camera.zoom());
+            object->animation.bitmap(),
+            object->animation.frame(),
+            screenPosition,
+            (float)_camera.zoom);
     }
 }
 
-ObjectId Scene::spawn(const Sprite& sprite, ScreenPosition position)
+void Scene::setupCamera(const WorldPoint& center, float unitPixelSize, int zoom)
 {
-    return _objects.emplace(sprite, position);
+    _camera.position = center;
+    _camera.unitPixelSize = unitPixelSize;
+    _camera.zoom = zoom;
 }
 
-void Scene::move(ObjectId objectId, ScreenPosition position)
+void Scene::cameraFollow(Object* object)
 {
-    _objects[objectId].move(position);
+    _camera.follow = object;
 }
 
-void Scene::kill(ObjectId objectId)
+Object* Scene::spawn(const Sprite& sprite, const WorldPoint& position)
 {
-    _objects.pop(objectId);
-}
-
-void Scene::layTexture(const Sprite& sprite)
-{
-    _texture = &sprite;
-}
-
-void Scene::removeTexture()
-{
-    _texture = nullptr;
+    auto* ptr = new Object{
+        .animation = Animation{sprite},
+        .position = position
+    };
+    return _objects.emplace_back(ptr).get();
 }
 
 } // namespace gx

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gx/ui_position.hpp>
+
 #include <SDL.h>
 
 #include <chrono>
@@ -11,26 +13,15 @@
 
 namespace gx {
 
-struct ScreenPosition {
+struct PixelPoint {
     float x = 0.f;
     float y = 0.f;
 };
 
-inline std::ostream& operator<<(
-    std::ostream& output, const ScreenPosition& position)
-{
-    return output << "(" << position.x << ", " << position.y << ")";
-}
-
-struct ScreenSize {
-    int w = 0;
-    int h = 0;
+struct PixelSize {
+    float w = 0.f;
+    float h = 0.f;
 };
-
-inline std::ostream& operator<<(std::ostream& output, const ScreenSize& size)
-{
-    return output << "(" << size.w << ", " << size.h << ")";
-}
 
 struct Frame {
     int x = 0.f;
@@ -39,9 +30,16 @@ struct Frame {
     int h = 0.f;
 };
 
+struct StrictSize {
+    int w = 0;
+    int h = 0;
+};
+
 class Bitmap {
 public:
-    ScreenSize size() const;
+    Bitmap();
+
+    StrictSize size() const;
 
 private:
     explicit Bitmap(SDL_Texture* ptr);
@@ -49,6 +47,13 @@ private:
     std::unique_ptr<SDL_Texture, void(*)(SDL_Texture*)> _ptr;
 
     friend class Renderer;
+};
+
+struct Color {
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+    uint8_t a = 0;
 };
 
 class Renderer {
@@ -61,16 +66,25 @@ public:
     void draw(
         const Bitmap& bitmap,
         const Frame& rect,
-        const ScreenPosition& position,
+        const ScreenPoint& position,
         float zoom = 1.f);
 
-    void processInput();
+    void drawRectangle(
+        const ScreenPoint& position,
+        const ScreenSize& size,
+        const Color& color);
+
+    bool processEvent(const SDL_Event& e);
     void clear();
     void present();
 
-    ScreenSize windowSize() const;
+    StrictSize windowSize() const;
 
 private:
+    PixelPoint pixel(const ScreenPoint& screenPoint) const;
+    PixelSize pixel(const ScreenSize& screenPoint) const;
+
+    StrictSize _windowSize;
     std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> _window;
     std::unique_ptr<SDL_Renderer, void(*)(SDL_Renderer*)> _renderer;
 };

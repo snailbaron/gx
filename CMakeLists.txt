@@ -11,14 +11,13 @@ add_subdirectory(deps)
 configure_file(build-info.hpp.in include/build-info.hpp @ONLY)
 
 add_library(gx
-    client.cpp
+    box.cpp
     error.cpp
     id.cpp
     renderer.cpp
-    resources.cpp
     scene.cpp
+    sprite.cpp
     ui.cpp
-    ui_position.cpp
 )
 
 target_include_directories(gx PUBLIC
@@ -27,4 +26,4 @@ target_include_directories(gx PUBLIC
 )
 target_link_libraries(gx PUBLIC SDL2::SDL2 SDL2_image::SDL2_image)
 
-add_subdirectory(examples)
+add_subdirectory(example)

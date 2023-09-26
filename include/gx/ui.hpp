@@ -25,7 +25,7 @@ public:
 
     virtual ~Widget() = default;
 
-    virtual void update(double delta) {}
+    virtual void update(float delta) {}
     virtual void render(Renderer& renderer) const = 0;
     virtual bool contains(int /*x*/, int /*y*/) const { return false; }
 
@@ -42,44 +42,15 @@ private:
     State _state = State::Normal;
 };
 
-class Ui {
-public:
-    Ui(const ScreenSize& areaSize);
-
-    template <class T, class... Args>
-    requires std::derived_from<T, Widget> && std::constructible_from<T, Args...>
-    T& createWidget(Args&&... args)
-    {
-        return _widgets.emplace_back(std::forward<Args>(args)...);
-    }
-
-    template <std::derived_from<Widget> T>
-    T& addWidget(T&& widget)
-    {
-        _widgets.push_back(std::forward<T>(widget));
-        return _widgets.back();
-    }
-
-    bool processEvent(const SDL_Event& e);
-
-private:
-    Widget* widgetAtPosition(int x, int y) const;
-
-    ScreenSize _areaSize;
-    std::vector<std::unique_ptr<Widget>> _widgets;
-    Widget* _focusedWidget = nullptr;
-    Widget* _pressedWidget = nullptr;
-};
-
 class Button : public Widget {
 public:
-    Button(const UiPoint& position, const UiSize& size);
+    Button(const ScreenPoint& position, const ScreenSize& size);
 
     void render(Renderer& window) const override;
 
 private:
-    UiPoint _position;
-    UiSize _size;
+    ScreenPoint _position;
+    ScreenSize _size;
     State _state = State::Normal;
 };
 
