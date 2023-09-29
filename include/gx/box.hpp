@@ -16,6 +16,14 @@ namespace gx {
 
 class Box {
 public:
+    Box();
+    ~Box();
+
+    Box(const Box&) = delete;
+    Box(Box&&) = delete;
+    Box& operator=(const Box&) = delete;
+    Box& operator=(Box&&) = delete;
+
     Bitmap loadBitmap(const std::filesystem::path& path) const;
     Bitmap loadBitmap(const std::span<const std::byte>& data) const;
 
@@ -23,11 +31,13 @@ public:
     static void setCursor(Cursor& cursor);
 
     bool processEvent(const SDL_Event& e);
-    void update(double delta);
+    void update(float delta);
     void present();
 
     bool alive() const;
     bool dead() const;
+
+    Renderer& renderer();
 
     template <class T, class... Args>
     requires std::derived_from<T, Widget> && std::constructible_from<T, Args...>

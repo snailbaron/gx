@@ -6,13 +6,11 @@
 
 namespace gx {
 
-ScreenPoint Camera::project(const WorldPoint& worldPosition) const
+ScreenVector Camera::project(const WorldPoint& worldPosition) const
 {
     return {
-        .x = 0.5_fr + 1.0_px * (worldPosition.x - position.x) *
-            unitPixelSize * (float)zoom,
-        .y = 0.5_fr + 1.0_px * (position.y - worldPosition.y) *
-            unitPixelSize * (float)zoom,
+        .x = (worldPosition.x - position.x) * unitPixelSize * (float)zoom,
+        .y = (position.y - worldPosition.y) * unitPixelSize * (float)zoom,
     };
 }
 
@@ -23,12 +21,12 @@ void Camera::update(float delta)
 
     if (follow) {
         auto toTarget = follow->position - position;
-        float d = length(toTarget);
+        float d = toTarget.length();
         float moveDistance = (dragForce * d * d + extraDrag) * delta;
         if (moveDistance >= d) {
             position = follow->position;
         } else {
-            position += resize(toTarget, moveDistance);
+            position += toTarget.resized(moveDistance);
         }
     }
 }
@@ -55,14 +53,15 @@ void Scene::update(float delta)
     _objects.resize(n);
 }
 
-void Scene::render(Renderer& renderer) const
+void Scene::render(Renderer& renderer, const ScreenRectangle& area) const
 {
     for (const auto& object : _objects) {
-        auto screenPosition = _camera.project(object->position);
+        auto objectOffset = _camera.project(object->position);
+        auto objectPosition = area.middlePoint() + objectOffset;
         renderer.draw(
             object->animation.bitmap(),
             object->animation.frame(),
-            screenPosition,
+            objectPosition,
             (float)_camera.zoom);
     }
 }

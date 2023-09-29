@@ -2,9 +2,26 @@
 
 #include <gx/error.hpp>
 
+#include <SDL_image.h>
+
+#include <ranges>
 #include <string>
 
 namespace gx {
+
+Box::Box()
+{
+    sdlCheck(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS));
+    sdlCheck(IMG_Init(IMG_INIT_PNG));
+    sdlCheck(TTF_Init());
+}
+
+Box::~Box()
+{
+    TTF_Quit();
+    IMG_Quit();
+    SDL_Quit();
+}
 
 Bitmap Box::loadBitmap(const std::filesystem::path& path) const
 {
@@ -26,7 +43,7 @@ void Box::setCursor(Cursor& cursor)
     Renderer::setCursor(cursor);
 }
 
-void Box::update(double delta)
+void Box::update(float delta)
 {
     for (const auto& widget : _widgets) {
         widget->update(delta);
@@ -37,7 +54,7 @@ void Box::present()
 {
     _renderer.clear();
     for (const auto& widget : _widgets) {
-        widget->render(_renderer);
+        widget->render(_renderer, _renderer.windowArea());
     }
     _renderer.present();
 }
@@ -50,6 +67,11 @@ bool Box::alive() const
 bool Box::dead() const
 {
     return !_alive;
+}
+
+Renderer& Box::renderer()
+{
+    return _renderer;
 }
 
 bool Box::processEvent(const SDL_Event& e)
@@ -70,9 +92,11 @@ bool Box::processEvent(const SDL_Event& e)
 
 Widget* Box::widgetAtPosition(int x, int y) const
 {
-    for (const auto& widget : _widgets) {
-        if (widget->enabled() && widget->contains(x, y)) {
-            return widget.get();
+    const auto& windowArea = _renderer.windowArea();
+    auto point = ScreenPoint{(float)x, (float)y};
+    for (const auto& widget : _widgets | std::views::reverse) {
+        if (auto* target = widget->locate(windowArea, point)) {
+            return target;
         }
     }
     return nullptr;
@@ -84,35 +108,35 @@ bool Box::processUiEvent(const SDL_Event& e)
         auto* newFocusedWidget = widgetAtPosition(e.motion.x, e.motion.y);
         if (newFocusedWidget != _focusedWidget) {
             if (_focusedWidget) {
-                if (_focusedWidget->state() == Widget::State::Focused) {
-                    _focusedWidget->state(Widget::State::Normal);
-                } else if (_focusedWidget->state() == Widget::State::Pressed) {
-                    _focusedWidget->state(Widget::State::SlipPressed);
-                }
+                _focusedWidget->onUnfocus();
             }
             _focusedWidget = newFocusedWidget;
-            if (_focusedWidget) {
-                if (_pressedWidget == nullptr) {
-                    _focusedWidget->state(Widget::State::Focused);
-                } else if (_pressedWidget == _focusedWidget) {
-                    _focusedWidget->state(Widget::State::Pressed);
-                }
+            if (_focusedWidget &&
+                    (!_pressedWidget || _focusedWidget == _pressedWidget)) {
+                _focusedWidget->onFocus();
             }
         }
-        return (_pressedWidget != nullptr);
-    } else if (e.type == SDL_MOUSEBUTTONDOWN) {
+        if (_pressedWidget) {
+            auto drag =
+                ScreenVector{(float)e.motion.xrel, (float)e.motion.yrel};
+            _pressedWidget->onDrag(drag);
+        }
+        return true;
+    }
+
+    if (e.type == SDL_MOUSEBUTTONDOWN) {
         if (_focusedWidget) {
-            _focusedWidget->state(Widget::State::Pressed);
+            _focusedWidget->onPress();
             _pressedWidget = _focusedWidget;
             return true;
         }
     } else if (e.type == SDL_MOUSEBUTTONUP) {
         if (_pressedWidget) {
+            _pressedWidget->onRelease();
             if (_pressedWidget == _focusedWidget) {
-                _pressedWidget->state(Widget::State::Focused);
                 _pressedWidget->onActivate();
             } else if (_focusedWidget) {
-                _focusedWidget->state(Widget::State::Focused);
+                _focusedWidget->onFocus();
             }
             _pressedWidget = nullptr;
             return true;

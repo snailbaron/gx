@@ -10,6 +10,8 @@
 
 #include <iostream>
 
+using namespace gx::literals;
+
 std::filesystem::path executableDirectory()
 {
 #ifdef __linux__
@@ -259,6 +261,9 @@ struct Resources {
         gx::Bitmap tree;
         gx::Bitmap hero;
         gx::Bitmap stone;
+        gx::Bitmap button;
+        gx::Bitmap pressAnimation;
+        gx::Bitmap quitTextBitmap;
     };
 
     struct Sprites {
@@ -266,14 +271,23 @@ struct Resources {
         gx::Sprite tree;
         gx::Sprite hero;
         gx::Sprite stone;
+        gx::Sprite buttonNormal;
+        gx::Sprite buttonPressed;
+        gx::Sprite pressAnimation;
+        gx::Sprite quitTextSprite;
+    };
+
+    struct Fonts {
+        gx::Font main;
     };
 
     Bitmaps bitmaps;
     Sprites sprites;
+    Fonts fonts;
     gx::Cursor cursor;
 };
 
-Resources loadResources(const gx::Box& box)
+Resources loadResources(gx::Box& box)
 {
     auto r = Resources{};
 
@@ -293,6 +307,21 @@ Resources loadResources(const gx::Box& box)
 
     r.cursor = gx::Box::loadCursor(root / "cursor.png", 2, 0);
 
+    r.bitmaps.button = box.loadBitmap(root / "button.png");
+    r.sprites.buttonNormal =
+        gx::createOneFrameSprite(r.bitmaps.button, {0, 0, 64, 16}, 3);
+    r.sprites.buttonPressed =
+        gx::createOneFrameSprite(r.bitmaps.button, {0, 16, 64, 16}, 3);
+
+    r.bitmaps.pressAnimation = box.loadBitmap(root / "press-animation.png");
+    r.sprites.pressAnimation =
+        gx::createSimpleSprite(r.bitmaps.pressAnimation, 7, 14);
+
+    r.fonts.main = gx::Font{root / "nasalization-rg.otf", 18};
+    r.bitmaps.quitTextBitmap = box.renderer().prepareText(
+        r.fonts.main, "Quit", {0, 0, 0, 255});
+    r.sprites.quitTextSprite = gx::createSimpleSprite(r.bitmaps.quitTextBitmap);
+
     return r;
 }
 
@@ -301,13 +330,13 @@ class Timer {
 
 public:
     Timer(int fps)
-        : _delta(1.0 / fps)
+        : _delta(1.f / (float)fps)
         , _frameDuration(std::chrono::duration_cast<Clock::duration>(
-            std::chrono::duration<double>(_delta)))
+            std::chrono::duration<float>(_delta)))
         , _start(Clock::now())
     { }
 
-    double delta() const
+    float delta() const
     {
         return _delta;
     }
@@ -328,7 +357,7 @@ public:
     }
 
 private:
-    double _delta = 0.0;
+    float _delta = 0.f;
     Clock::duration _frameDuration;
     Clock::time_point _start;
     size_t _lastFrame = 0;
@@ -344,6 +373,16 @@ int main()
     gx::Box::setCursor(r.cursor);
 
     auto* scene = box.createWidget<gx::Scene>();
+
+    bool quitRequested = false;
+
+    box.createWidget<gx::Button>()
+        ->position(1_fr - 20_px - 32_px * 3, 20_px + 8_px * 3)
+        ->color({100, 50, 50})
+        ->buttonSprite(r.sprites.buttonNormal)
+        ->pressedButtonSprite(r.sprites.buttonPressed)
+        ->textSprite(r.sprites.quitTextSprite)
+        ->action([&quitRequested] { quitRequested = true; });
 
     auto* hero = scene->spawn(r.sprites.hero, gx::WorldPoint{0, 0});
     scene->setupCamera(gx::WorldPoint{0, 0}, 16, 4);
@@ -369,7 +408,7 @@ int main()
         for (SDL_Event e; SDL_PollEvent(&e); ) {
             box.processEvent(e) || world.processEvent(e);
         }
-        if (box.dead()) {
+        if (box.dead() || quitRequested) {
             break;
         }
 
@@ -381,7 +420,7 @@ int main()
 
             hero->position = {world.heroPosition.x, world.heroPosition.y};
 
-            box.update(timer.delta() * framesPassed);
+            box.update(timer.delta() * (float)framesPassed);
             box.present();
         }
 

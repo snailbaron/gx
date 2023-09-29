@@ -17,13 +17,16 @@ add_library(gx
     renderer.cpp
     scene.cpp
     sprite.cpp
-    ui.cpp
 )
 
 target_include_directories(gx PUBLIC
     include
     "${CMAKE_CURRENT_BINARY_DIR}/include"
 )
-target_link_libraries(gx PUBLIC SDL2::SDL2 SDL2_image::SDL2_image)
+target_link_libraries(gx PUBLIC
+    SDL2::SDL2
+    SDL2_image::SDL2_image
+    SDL2_ttf::SDL2_ttf
+)
 
 add_subdirectory(example)

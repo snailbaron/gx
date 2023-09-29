@@ -1,45 +1,36 @@
 #pragma once
 
-#include <gx/ui_position.hpp>
+#include <gx/geometry.hpp>
 
 #include <SDL.h>
+#include <SDL_ttf.h>
 
 #include <chrono>
 #include <filesystem>
 #include <memory>
 #include <ostream>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace gx {
 
-struct PixelPoint {
-    float x = 0.f;
-    float y = 0.f;
-};
+struct ScreenTag;
+using ScreenVector = Vector<float, ScreenTag>;
+using ScreenPoint = Point<float, ScreenTag>;
+using ScreenRectangle = Rectangle<float, ScreenTag>;
 
-struct PixelSize {
-    float w = 0.f;
-    float h = 0.f;
-};
-
-struct Frame {
-    int x = 0.f;
-    int y = 0.f;
-    int w = 0.f;
-    int h = 0.f;
-};
-
-struct StrictSize {
-    int w = 0;
-    int h = 0;
-};
+struct PixelTag;
+using PixelVector = Vector<int, PixelTag>;
+using PixelPoint = Point<int, PixelTag>;
+using PixelRectangle = Rectangle<int, PixelTag>;
 
 class Bitmap {
 public:
     Bitmap();
 
-    StrictSize size() const;
+    PixelVector size() const;
 
 private:
     explicit Bitmap(SDL_Texture* ptr);
@@ -69,6 +60,17 @@ struct Color {
     uint8_t a = 0;
 };
 
+class Font {
+public:
+    Font() = default;
+    Font(const std::filesystem::path& path, int ptSize);
+
+private:
+    std::unique_ptr<TTF_Font, void(*)(TTF_Font*)> _ptr {nullptr, TTF_CloseFont};
+
+    friend class Renderer;
+};
+
 class Renderer {
 public:
     Renderer();
@@ -79,28 +81,29 @@ public:
     static Cursor loadCursor(const std::filesystem::path& path, int x, int y);
     static void setCursor(Cursor& cursor);
 
+    Bitmap prepareText(
+        const Font& font,
+        const std::string& text,
+        const Color& color,
+        int maxLength = 0);
+
     void draw(
         const Bitmap& bitmap,
-        const Frame& rect,
+        const PixelRectangle& frame,
         const ScreenPoint& position,
         float zoom = 1.f);
 
-    void drawRectangle(
-        const ScreenPoint& position,
-        const ScreenSize& size,
-        const Color& color);
+    void drawRectangle(const ScreenRectangle& rectangle, const Color& color);
 
     bool processEvent(const SDL_Event& e);
     void clear();
     void present();
 
-    StrictSize windowSize() const;
+    const ScreenVector& windowSize() const;
+    ScreenRectangle windowArea() const;
 
 private:
-    PixelPoint pixel(const ScreenPoint& screenPoint) const;
-    PixelSize pixel(const ScreenSize& screenPoint) const;
-
-    StrictSize _windowSize;
+    ScreenVector _windowSize;
     std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> _window;
     std::unique_ptr<SDL_Renderer, void(*)(SDL_Renderer*)> _renderer;
 };

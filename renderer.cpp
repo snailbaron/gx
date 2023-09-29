@@ -34,11 +34,16 @@ Cursor::Cursor(SDL_Surface* ptr, int x, int y)
         SDL_FreeCursor)
 { }
 
-StrictSize Bitmap::size() const
+PixelVector Bitmap::size() const
 {
-    auto size = StrictSize{};
-    sdlCheck(SDL_QueryTexture(_ptr.get(), nullptr, nullptr, &size.w, &size.h));
+    auto size = PixelVector{};
+    sdlCheck(SDL_QueryTexture(_ptr.get(), nullptr, nullptr, &size.x, &size.y));
     return size;
+}
+
+Font::Font(const std::filesystem::path& path, int ptSize)
+{
+    _ptr.reset(sdlCheck(TTF_OpenFont(path.string().c_str(), ptSize)));
 }
 
 Renderer::Renderer()
@@ -58,7 +63,10 @@ Renderer::Renderer()
             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
         SDL_DestroyRenderer)
 {
-    SDL_GetWindowSize(_window.get(), &_windowSize.w, &_windowSize.h);
+    int x = 0;
+    int y = 0;
+    SDL_GetWindowSize(_window.get(), &x, &y);
+    _windowSize = {(float)x, (float)y};
 }
 
 Bitmap Renderer::loadBitmap(const std::filesystem::path& path) const
@@ -90,37 +98,59 @@ void Renderer::setCursor(Cursor& cursor)
     SDL_SetCursor(cursor._cursor.get());
 }
 
+Bitmap Renderer::prepareText(
+    const Font& font,
+    const std::string& text,
+    const Color& color,
+    int maxLength)
+{
+    auto sdlColor = SDL_Color{color.r, color.g, color.b, color.a};
+
+    SDL_Surface* surface = nullptr;
+    if (maxLength == 0) {
+        surface = TTF_RenderUTF8_Blended(
+            font._ptr.get(), text.c_str(), sdlColor);
+    } else {
+        surface = TTF_RenderUTF8_Blended_Wrapped(
+            font._ptr.get(), text.c_str(), sdlColor, maxLength);
+    }
+    if (!surface) {
+        throw Error{"cannot render text to surface"};
+    }
+
+    auto bitmap = Bitmap{sdlCheck(
+        SDL_CreateTextureFromSurface(_renderer.get(), surface))};
+
+    SDL_FreeSurface(surface);
+
+    return bitmap;
+}
+
 void Renderer::draw(
     const Bitmap& bitmap,
-    const Frame& rect,
+    const PixelRectangle& frame,
     const ScreenPoint& position,
     float zoom)
 {
-    auto pixelPosition = pixel(position);
-    auto src = SDL_Rect{.x = rect.x, .y = rect.y, .w = rect.w, .h = rect.h};
+    auto src = SDL_Rect{.x = frame.x, .y = frame.y, .w = frame.w, .h = frame.h};
     auto dst = SDL_FRect{
-        .x = pixelPosition.x - zoom * (float)rect.w / 2.f,
-        .y = pixelPosition.y - zoom * (float)rect.h / 2.f,
-        .w = zoom * (float)rect.w,
-        .h = zoom * (float)rect.h
+        .x = position.x - zoom * (float)frame.w / 2.f,
+        .y = position.y - zoom * (float)frame.h / 2.f,
+        .w = zoom * (float)frame.w,
+        .h = zoom * (float)frame.h
     };
 
     sdlCheck(SDL_RenderCopyF(_renderer.get(), bitmap._ptr.get(), &src, &dst));
 }
 
 void Renderer::drawRectangle(
-    const ScreenPoint& position,
-    const ScreenSize& size,
-    const Color& color)
+    const ScreenRectangle& rectangle, const Color& color)
 {
-    auto pixelPosition = pixel(position);
-    auto pixelSize = pixel(size);
-
     auto rect = SDL_FRect{
-        .x = pixelPosition.x - pixelSize.w / 2,
-        .y = pixelPosition.y - pixelSize.h / 2,
-        .w = pixelSize.w,
-        .h = pixelSize.h
+        .x = rectangle.x,
+        .y = rectangle.y,
+        .w = rectangle.w,
+        .h = rectangle.h,
     };
 
     sdlCheck(SDL_SetRenderDrawColor(
@@ -130,9 +160,9 @@ void Renderer::drawRectangle(
 
 bool Renderer::processEvent(const SDL_Event& e)
 {
-    if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_RESIZED) {
-        std::cerr << "renderer processing resize\n";
-        _windowSize = {e.window.data1, e.window.data2};
+    if (e.type == SDL_WINDOWEVENT &&
+            e.window.event == SDL_WINDOWEVENT_RESIZED) {
+        _windowSize = {(float)e.window.data1, (float)e.window.data2};
         return true;
     }
 
@@ -141,6 +171,7 @@ bool Renderer::processEvent(const SDL_Event& e)
 
 void Renderer::clear()
 {
+    sdlCheck(SDL_SetRenderDrawColor(_renderer.get(), 0, 0, 0, 255));
     sdlCheck(SDL_RenderClear(_renderer.get()));
 }
 
@@ -149,28 +180,14 @@ void Renderer::present()
     SDL_RenderPresent(_renderer.get());
 }
 
-StrictSize Renderer::windowSize() const
+const ScreenVector& Renderer::windowSize() const
 {
     return _windowSize;
 }
 
-PixelPoint Renderer::pixel(const ScreenPoint& screenPoint) const
+ScreenRectangle Renderer::windowArea() const
 {
-    return {
-        .x = screenPoint.x.pixels +
-            screenPoint.x.fraction * (float)_windowSize.w,
-        .y = screenPoint.y.pixels +
-            screenPoint.y.fraction * (float)_windowSize.h
-    };
-}
-PixelSize Renderer::pixel(const ScreenSize& screenPoint) const
-{
-    return {
-        .w = screenPoint.w.pixels +
-            screenPoint.w.fraction * (float)_windowSize.w,
-        .h = screenPoint.h.pixels +
-            screenPoint.h.fraction * (float)_windowSize.h
-    };
+    return {0, 0, _windowSize.x, _windowSize.y};
 }
 
 } // namespace gx
