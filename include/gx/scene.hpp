@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <map>
 #include <vector>
 
@@ -24,12 +25,13 @@ struct Object {
 };
 
 struct Camera {
-    ScreenVector project(const WorldPoint& worldPosition) const;
+    ScreenVector worldPointToScreenOffset(const WorldPoint& worldPosition) const;
+    WorldPoint screenOffsetToWorldPoint(const ScreenVector& offset) const;
     void update(float delta);
 
     WorldPoint position;
     float unitPixelSize = 1.f;
-    int zoom = 1;
+    float zoom = 1.f;
     Object* follow = nullptr;
 };
 
@@ -40,14 +42,23 @@ public:
     void update(float delta) override;
     void render(Renderer& renderer, const ScreenRectangle& area) const override;
 
-    void setupCamera(const WorldPoint& center, float unitPixelSize, int zoom);
+    void setupCamera(const WorldPoint& center, float unitPixelSize, float zoom);
     void cameraFollow(Object* object);
 
     Object* spawn(const Sprite& sprite, const WorldPoint& position);
 
+    void clickAction(std::function<void(const WorldPoint&)> action);
+
+    Widget* locate(
+        const ScreenRectangle& area, const ScreenPoint& point) override;
+
+    void onPress(
+        const ScreenRectangle& area, const ScreenPoint& point) override;
+
 private:
     Camera _camera;
     std::vector<std::unique_ptr<Object>> _objects;
+    std::function<void(const WorldPoint&)> _clickAction;
 };
 
 } // namespace gx

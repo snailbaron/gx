@@ -67,7 +67,8 @@ public:
 
     virtual void onFocus() {}
     virtual void onUnfocus() {}
-    virtual void onPress() {}
+    virtual void onPress(
+        const ScreenRectangle& area, const ScreenPoint& point) {}
     virtual void onRelease() {}
     virtual void onActivate() {}
     virtual void onDrag(const ScreenVector&) {}
@@ -145,7 +146,7 @@ public:
         return screenArea.contains(point) ? this : nullptr;
     }
 
-    void onPress() override
+    void onPress(const ScreenRectangle&, const ScreenPoint&) override
     {
         _pressed = true;
     }

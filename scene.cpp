@@ -1,16 +1,25 @@
 #include <gx/scene.hpp>
 
 #include <cmath>
+#include <utility>
 
 #include <iostream>
 
 namespace gx {
 
-ScreenVector Camera::project(const WorldPoint& worldPosition) const
+ScreenVector Camera::worldPointToScreenOffset(const WorldPoint& worldPosition) const
 {
     return {
-        .x = (worldPosition.x - position.x) * unitPixelSize * (float)zoom,
-        .y = (position.y - worldPosition.y) * unitPixelSize * (float)zoom,
+        .x = (worldPosition.x - position.x) * unitPixelSize * zoom,
+        .y = (position.y - worldPosition.y) * unitPixelSize * zoom,
+    };
+}
+
+WorldPoint Camera::screenOffsetToWorldPoint(const ScreenVector& offset) const
+{
+    return {
+        .x = position.x + offset.x / unitPixelSize / zoom,
+        .y = position.y - offset.y / unitPixelSize / zoom,
     };
 }
 
@@ -40,23 +49,21 @@ void Scene::update(float delta)
 {
     _camera.update(delta);
 
-    size_t n = _objects.size();
-    for (size_t i = 0; i < n; ) {
+    for (size_t i = 0; i < _objects.size(); ) {
         if (_objects.at(i)->kill) {
             std::swap(_objects.at(i), _objects.back());
-            n--;
+            _objects.resize(_objects.size() - 1);
         } else {
             _objects.at(i)->animation.update(delta);
             i++;
         }
     }
-    _objects.resize(n);
 }
 
 void Scene::render(Renderer& renderer, const ScreenRectangle& area) const
 {
     for (const auto& object : _objects) {
-        auto objectOffset = _camera.project(object->position);
+        auto objectOffset = _camera.worldPointToScreenOffset(object->position);
         auto objectPosition = area.middlePoint() + objectOffset;
         renderer.draw(
             object->animation.bitmap(),
@@ -66,7 +73,8 @@ void Scene::render(Renderer& renderer, const ScreenRectangle& area) const
     }
 }
 
-void Scene::setupCamera(const WorldPoint& center, float unitPixelSize, int zoom)
+void Scene::setupCamera(
+    const WorldPoint& center, float unitPixelSize, float zoom)
 {
     _camera.position = center;
     _camera.unitPixelSize = unitPixelSize;
@@ -85,6 +93,25 @@ Object* Scene::spawn(const Sprite& sprite, const WorldPoint& position)
         .position = position
     };
     return _objects.emplace_back(ptr).get();
+}
+
+void Scene::clickAction(std::function<void(const WorldPoint&)> action)
+{
+    _clickAction = std::move(action);
+}
+
+Widget* Scene::locate(const ScreenRectangle& area, const ScreenPoint& point)
+{
+    return area.contains(point) ? this : nullptr;
+}
+
+void Scene::onPress(const ScreenRectangle& area, const ScreenPoint& point)
+{
+    if (_clickAction) {
+        auto screenOffset = point - area.middlePoint();
+        auto worldPoint = _camera.screenOffsetToWorldPoint(screenOffset);
+        _clickAction(worldPoint);
+    }
 }
 
 } // namespace gx

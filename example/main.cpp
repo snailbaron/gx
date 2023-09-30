@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <map>
 #include <ostream>
 #include <thread>
 
@@ -54,11 +55,23 @@ struct Vector {
         return *this;
     }
 
-    void resize(float newSize)
+    constexpr void resize(float newSize)
     {
         if (auto l = length(*this); l != 0) {
             *this *= newSize / l;
         }
+    }
+
+    constexpr Vector resized(float newSize) const
+    {
+        auto copy = *this;
+        copy.resize(newSize);
+        return copy;
+    }
+
+    constexpr bool zero() const
+    {
+        return x == 0 && y == 0;
     }
 
     float x = 0.f;
@@ -118,13 +131,6 @@ constexpr float distance(const Vector& lhs, const Vector& rhs)
     return length(lhs - rhs);
 }
 
-enum class ObjectType {
-    Grass,
-    Road,
-    Tree,
-    Stone,
-};
-
 struct KeyboardControl {
     bool moveLeft = false;
     bool moveRight = false;
@@ -132,10 +138,39 @@ struct KeyboardControl {
     bool moveDown = false;
 };
 
+enum class ObjectType {
+    None,
+    Grass,
+    Road,
+    Tree,
+    Stone,
+    Hero,
+    Bullet,
+};
+
 struct Object {
+    size_t id = 0;
     ObjectType type = ObjectType::Grass;
     Vector position;
 };
+
+struct Bullet {
+    size_t id = 0;
+    Vector position;
+    Vector velocity;
+    float age = 0.f;
+};
+
+struct Message {
+    size_t objectId = 0;
+    ObjectType type = ObjectType::None;
+    bool alive = true;
+    float x = 0.f;
+    float y = 0.f;
+};
+
+// Poor man's event queue
+std::vector<Message> messages;
 
 struct World {
     void initialize()
@@ -166,13 +201,22 @@ struct World {
                 if (type == ObjectType::Tree || type == ObjectType::Stone) {
                     float x = (float)j - 5.f;
                     float y = 5.f - (float)i;
-                    objects.push_back({
+                    auto object = Object{
+                        .id = nextId++,
                         .type = data.at(i).at(j),
                         .position = {x, y}
+                    };
+                    objects.push_back(object);
+                    messages.push_back(Message{
+                        .objectId = object.id,
+                        .type = object.type,
+                        .x = object.position.x,
+                        .y = object.position.y,
                     });
                 }
             }
         }
+
     }
 
     void update(float delta)
@@ -199,6 +243,39 @@ struct World {
                 auto pushVector = heroPosition - object.position;
                 pushVector.resize(1 - d);
                 heroPosition += pushVector;
+            }
+        }
+
+        for (size_t i = 0; i < bullets.size(); ) {
+            auto& bullet = bullets.at(i);
+            bullet.position += bullet.velocity * delta;
+            bullet.age += delta;
+            messages.push_back(Message{
+                .objectId = bullet.id,
+                .x = bullet.position.x,
+                .y = bullet.position.y});
+
+            bool collision = false;
+            for (size_t j = 0; j < objects.size(); ) {
+                auto& object = objects.at(j);
+                if (distance(bullet.position, object.position) < 0.6f) {
+                    collision = true;
+                    messages.push_back(Message{
+                        .objectId = object.id, .alive = false});
+                    std::swap(object, objects.back());
+                    objects.resize(objects.size() - 1);
+                } else {
+                    j++;
+                }
+            }
+
+            if (collision || bullet.age > 1.f) {
+                messages.push_back(
+                    Message{.objectId = bullet.id, .alive = false});
+                std::swap(bullet, bullets.back());
+                bullets.resize(bullets.size() - 1);
+            } else {
+                i++;
             }
         }
     }
@@ -245,10 +322,31 @@ struct World {
         return false;
     }
 
+    void shootInDirectionOf(const Vector& targetPoint)
+    {
+        static constexpr float bulletSpeed = 10.f;
+
+        auto bulletVelocity = (targetPoint - heroPosition).resized(bulletSpeed);
+        if (!bulletVelocity.zero()) {
+            bullets.push_back(Bullet{
+                .id = nextId++,
+                .position = heroPosition,
+                .velocity = bulletVelocity});
+            messages.push_back(Message{
+                .objectId = bullets.back().id,
+                .type = ObjectType::Bullet,
+                .x = bullets.back().position.x,
+                .y = bullets.back().position.y,
+            });
+        }
+    }
+
     Vector heroPosition;
     Vector heroVelocity;
     KeyboardControl control;
     std::vector<Object> objects;
+    std::vector<Bullet> bullets;
+    size_t nextId = 0;
 };
 
 struct Client {
@@ -264,6 +362,7 @@ struct Resources {
         gx::Bitmap button;
         gx::Bitmap pressAnimation;
         gx::Bitmap quitTextBitmap;
+        gx::Bitmap bullet;
     };
 
     struct Sprites {
@@ -275,6 +374,7 @@ struct Resources {
         gx::Sprite buttonPressed;
         gx::Sprite pressAnimation;
         gx::Sprite quitTextSprite;
+        gx::Sprite bullet;
     };
 
     struct Fonts {
@@ -304,6 +404,9 @@ Resources loadResources(gx::Box& box)
 
     r.bitmaps.stone = box.loadBitmap(root / "stone.png");
     r.sprites.stone = gx::createSimpleSprite(r.bitmaps.stone);
+
+    r.bitmaps.bullet = box.loadBitmap(root / "bullet.png");
+    r.sprites.bullet = gx::createSimpleSprite(r.bitmaps.bullet);
 
     r.cursor = gx::Box::loadCursor(root / "cursor.png", 2, 0);
 
@@ -384,22 +487,14 @@ int main()
         ->textSprite(r.sprites.quitTextSprite)
         ->action([&quitRequested] { quitRequested = true; });
 
+    std::map<size_t, gx::Object*> objects;
+
     auto* hero = scene->spawn(r.sprites.hero, gx::WorldPoint{0, 0});
     scene->setupCamera(gx::WorldPoint{0, 0}, 16, 4);
     scene->cameraFollow(hero);
-
-    for (const auto& object : world.objects) {
-        switch (object.type) {
-        case ObjectType::Stone:
-            scene->spawn(r.sprites.stone, {object.position.x, object.position.y});
-            break;
-        case ObjectType::Tree:
-            scene->spawn(r.sprites.tree, {object.position.x, object.position.y});
-            break;
-        default:
-            break;
-        }
-    }
+    scene->clickAction([&world] (const gx::WorldPoint& point) {
+        world.shootInDirectionOf({point.x, point.y});
+    });
 
     static constexpr int fps = 60;
     auto timer = Timer{fps};
@@ -417,6 +512,44 @@ int main()
             for (int i = 0; i < framesPassed; i++) {
                 world.update((float)timer.delta());
             }
+
+            for (const auto& message : messages) {
+                if (auto it = objects.find(message.objectId);
+                        it != objects.end()) {
+                    auto* object = it->second;
+                    if (!message.alive) {
+                        object->kill = true;
+                        objects.erase(it);
+                    } else {
+                        object->position = {message.x, message.y};
+                    }
+                } else {
+                    gx::Sprite* sprite = nullptr;
+                    switch (message.type) {
+                        case ObjectType::Stone:
+                            sprite = &r.sprites.stone;
+                            break;
+                        case ObjectType::Tree:
+                            sprite = &r.sprites.tree;
+                            break;
+                        case ObjectType::Hero:
+                            sprite = &r.sprites.hero;
+                            break;
+                        case ObjectType::Bullet:
+                            sprite = &r.sprites.bullet;
+                            break;
+                        default:
+                            break;
+                    }
+
+                    if (sprite) {
+                        auto* object = scene->spawn(
+                            *sprite, {message.x, message.y});
+                        objects.emplace(message.objectId, object);
+                    }
+                }
+            }
+            messages.clear();
 
             hero->position = {world.heroPosition.x, world.heroPosition.y};
 

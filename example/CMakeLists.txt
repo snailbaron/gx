@@ -1,3 +1,4 @@
+configure_file(bullet.png bullet.png COPYONLY)
 configure_file(button.png button.png COPYONLY)
 configure_file(cursor.png cursor.png COPYONLY)
 configure_file(grass.png grass.png COPYONLY)

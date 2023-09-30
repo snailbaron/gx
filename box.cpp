@@ -104,6 +104,8 @@ Widget* Box::widgetAtPosition(int x, int y) const
 
 bool Box::processUiEvent(const SDL_Event& e)
 {
+    auto windowArea = _renderer.windowArea();
+
     if (e.type == SDL_MOUSEMOTION) {
         auto* newFocusedWidget = widgetAtPosition(e.motion.x, e.motion.y);
         if (newFocusedWidget != _focusedWidget) {
@@ -126,7 +128,8 @@ bool Box::processUiEvent(const SDL_Event& e)
 
     if (e.type == SDL_MOUSEBUTTONDOWN) {
         if (_focusedWidget) {
-            _focusedWidget->onPress();
+            auto point = ScreenPoint{(float)e.button.x, (float)e.button.y};
+            _focusedWidget->onPress(windowArea, point);
             _pressedWidget = _focusedWidget;
             return true;
         }
